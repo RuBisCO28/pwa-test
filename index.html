@@ -7,84 +7,42 @@
 </head>
 <body>
 <div style="padding: 16px; overflow: hidden">
-  <div id="js-num" style="font-size: 48px; text-align: center">0</div>
-  <div id="js-graph" style="width: 0; height: 50px; background-color: #007bff;"></div>
-  <button id="start">録音開始</button>
-  <button id="stop" disabled>録音終了</button>
+  <audio id="player" controls></audio>
+  <a id="download">Download</a>
+  <button id="stop">Stop</button>
 </div>
 <script>
-const num = document.getElementById('js-num')
-const graph = document.getElementById('js-graph')
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+const player = document.getElementById('player');
+const downloadLink = document.getElementById('download');
+const stopButton = document.getElementById('stop');
 
-const start = document.querySelector('start');
-const stop = document.querySelector('stop');
+const handleSuccess = function(stream) {
+  const options = {mimeType: 'audio/webm'};
+  const recordedChunks = [];
+  const mediaRecorder = new MediaRecorder(stream, options);
 
-let mediaRecorder = null;
-let mediaStream = null;
-
-start.addEventListener('click', () => {
-  start.disabled = true;
-  stop.disabled = false;
-
-  const chunks = [];
-  mediaRecorder = new MediaRecorder(mediaStream, {
-    mimeType: 'audio/webm'
+  mediaRecorder.addEventListener('dataavailable', function(e) {
+    if (e.data.size > 0) recordedChunks.push(e.data);
   });
 
-  mediaRecorder.addEventListener('dataavailable', e => {
-    if (e.data.size > 0) {
-      chunks.push(e.data);
-    }
+  mediaRecorder.addEventListener('stop', function() {
+    downloadLink.href = URL.createObjectURL(new Blob(recordedChunks));
+    downloadLink.download = 'acetest.wav';
   });
 
-  mediaRecorder.addEventListener('stop', ()　=> {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob(chunks));
-    a.download = 'test.webm';
-    a.click();
+  stopButton.addEventListener('click', function() {
+    mediaRecorder.stop();
   });
 
   mediaRecorder.start();
-});
-
-stop.addEventListener('click', () => {
-  if (mediaRecorder === null) {
-    return;
-  }
-
-  start.disabled = false;
-  stop.disabled = true;
-
-  mediaRecorder.stop();
-  mediaRecorder = null;
-});
+};
 
 navigator.mediaDevices
   .getUserMedia({
     audio: true,
     video: false
   })
-  .then(stream => {
-    mediaStream = stream;
-    // マイクから取得した音をWeb Audio APIで使えるオブジェクトに変換
-    const source = audioCtx.createMediaStreamSource(stream)
-
-    // ダイレクトな音声処理ができるオブジェクトを作成
-    const processor = audioCtx.createScriptProcessor(1024, 1, 1)
-
-    source.connect(processor)
-    processor.connect(audioCtx.destination)
-
-    processor.onaudioprocess = ev => {
-      // データを数値化してグラフに反映
-      const amp = ev.inputBuffer.getChannelData(0)
-      const reducer = (accumulator, currentValue) => accumulator + Math.abs(currentValue)
-      const result = Math.round(amp.reduce(reducer) / amp.length * 800)
-      graph.style.width = result + '%'
-      num.innerHTML = result
-    }
-  })
+  .then(handleSuccess)
   .catch(err => {
     // エラーを処理
   })
