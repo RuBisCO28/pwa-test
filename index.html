@@ -3,40 +3,41 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Camera Demo</title>
+<title>Microphone Demo</title>
 </head>
 <body>
-<video id="js-video" style="width: 45%" autoplay playsinline></video>
-<canvas id="js-canvas" style="width: 45%"></canvas>
-<div>
-  <button type="button" id="js-btn">撮影</button>
+<div style="padding: 16px; overflow: hidden">
+  <div id="js-num" style="font-size: 48px; text-align: center">0</div>
+  <div id="js-graph" style="width: 0; height: 50px; background-color: #007bff;"></div>
 </div>
 <script>
-const video = document.getElementById('js-video')
-const btn = document.getElementById('js-btn')
-
-btn.addEventListener('click', () => {
-  const canvas = document.querySelector('#js-canvas')
-  canvas.width = video.clientWidth
-  canvas.height = video.clientHeight
-  const ctx = canvas.getContext('2d')
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-})
+const num = document.getElementById('js-num')
+const graph = document.getElementById('js-graph')
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
 
 navigator.mediaDevices
   .getUserMedia({
-    // オーディオは使用しない
-    audio: false,
-    // リアカメラを使用する
-    video: {
-      facingMode: {
-        exact: 'environment'
-      },
-    },
+    audio: true,
+    video: false
   })
   .then(stream => {
-    // video要素にストリームを渡す
-    video.srcObject = stream
+    // マイクから取得した音をWeb Audio APIで使えるオブジェクトに変換
+    const source = audioCtx.createMediaStreamSource(stream)
+
+    // ダイレクトな音声処理ができるオブジェクトを作成
+    const processor = audioCtx.createScriptProcessor(1024, 1, 1)
+
+    source.connect(processor)
+    processor.connect(audioCtx.destination)
+
+    processor.onaudioprocess = ev => {
+      // データを数値化してグラフに反映
+      const amp = ev.inputBuffer.getChannelData(0)
+      const reducer = (accumulator, currentValue) => accumulator + Math.abs(currentValue)
+      const result = Math.round(amp.reduce(reducer) / amp.length * 800)
+      graph.style.width = result + '%'
+      num.innerHTML = result
+    }
   })
   .catch(err => {
     // エラーを処理
