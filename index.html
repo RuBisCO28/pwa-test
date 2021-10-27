@@ -9,11 +9,56 @@
 <div style="padding: 16px; overflow: hidden">
   <div id="js-num" style="font-size: 48px; text-align: center">0</div>
   <div id="js-graph" style="width: 0; height: 50px; background-color: #007bff;"></div>
+  <button id="start">録音開始</button>
+  <button id="stop" disabled>録音終了</button>
 </div>
 <script>
 const num = document.getElementById('js-num')
 const graph = document.getElementById('js-graph')
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+
+const start = document.querySelector('start');
+const stop = document.querySelector('stop');
+
+let mediaRecorder = null;
+let mediaStream = null;
+
+start.addEventListener('click', () => {
+  start.disabled = true;
+  stop.disabled = false;
+
+  const chunks = [];
+  mediaRecorder = new MediaRecorder(mediaStream, {
+    mimeType: 'audio/webm'
+  });
+
+  mediaRecorder.addEventListener('dataavailable', e => {
+    if (e.data.size > 0) {
+      chunks.push(e.data);
+    }
+  });
+
+  mediaRecorder.addEventListener('stop', ()　=> {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(chunks));
+    a.download = 'test.webm';
+    a.click();
+  });
+
+  mediaRecorder.start();
+});
+
+stop.addEventListener('click', () => {
+  if (mediaRecorder === null) {
+    return;
+  }
+
+  start.disabled = false;
+  stop.disabled = true;
+
+  mediaRecorder.stop();
+  mediaRecorder = null;
+});
 
 navigator.mediaDevices
   .getUserMedia({
@@ -21,6 +66,7 @@ navigator.mediaDevices
     video: false
   })
   .then(stream => {
+    mediaStream = stream;
     // マイクから取得した音をWeb Audio APIで使えるオブジェクトに変換
     const source = audioCtx.createMediaStreamSource(stream)
 
